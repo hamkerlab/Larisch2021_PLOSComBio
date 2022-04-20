@@ -10,7 +10,7 @@ import scipy.io as sio
 #------------------------global Variables------------------------------------
 nbrOfPatches = 400000
 duration = 125
-patchsize = 12#8
+patchsize = 12
 inputNeurons = patchsize*patchsize*2
 n_exN = patchsize*patchsize
 n_inN = int(n_exN/4)
@@ -22,7 +22,7 @@ EL = -70.4      :population
 VTrest = -50.4  :population
 taux = 15.0     :population
 """
-#if g_exc > -50.4: 1 else:
+
 inpt_eqs ="""
     dg_exc/dt = EL/1000 : min=EL, init=-70.6
     Spike = 0.0
@@ -38,7 +38,7 @@ spkNeurLGN = Neuron(parameters=params,
                                    xtrace+= 1/taux""", 
                           spike="""g_exc > VTrest""")
 
-## Neuron Model for V1-Layer, after Clopath et al.(2008) ##
+## Neuron Model for V1-Layer, after Clopath et al.(2010) ##
 params = """
 gL = 30.0         :population
 DeltaT = 2.0      :population
@@ -59,11 +59,35 @@ taumean = 750.0   :population
 tau_gExc = 1.0    :population  
 tau_gInh= 10.0    :population
 """
-#VTrest = -50.4
-#-82.363
-#if state==1:-82.363 else:
-#dg_Exc/dt = 1/tau_gExc * (-g_Exc)
-#dg_Inh/dt = 1/tau_gInh*(-g_Inh)
+
+
+"""
+To enable the correct up- and downswing of the membrane potential after a spike, the equation is divided in different parts.
+Via the 'state' parameter, the correct part is used for calculation in the current time step.
+For a better understanding of the implementation, the line
+
+dvm/dt = if state>=2:+3.462 else: if state==1:-(vm+51.75)+1/C*(Isp - (wad+b))+g_Exc-g_Inh else:1/C * ( -gL * (vm - EL) + gL * DeltaT * exp((vm - VT) / DeltaT) - wad + z ) + g_Exc -g_Inh: init = -70.6
+
+can be rewritten as
+
+alpha = if state>=2: beta else: if state==1: gamma else: delta: init = epsilon.
+
+with:
+alpha = dvm/dt
+beta = +3.462
+gamma = -(vm+51.75)+1/C*(Isp - (wad+b))+g_Exc-g_Inh
+delta = 1/C * ( -gL * (vm - EL) + gL * DeltaT * exp((vm - VT) / DeltaT) - wad + z ) + g_Exc -g_Inh
+epsilon = -70.6
+
+With alpha = dvm/dt,this is the normal differential term for the change of the membrane potential (vm) through time.
+The epsilon = -70.6 is the initialization value of vm. 
+The if-statements, depending on a variable called 'state', decide how the membrane potential should be calculated. 
+The state variable decreases each timestep until it reaches 0, and will be set to 2 after a spike.
+So if state >=2 calculate beta. If state ==1, calculate gamma. Otherwise calculate delta. Where beta and gamma are there to calculate correctly the up- and downswing for 2ms after a spike, 
+and delta is the normal equation for the membrane potential as mentioned in Clopath et al. (2010).
+"""
+
+
 neuron_eqs = """
 noise = Normal(0.0,1.0)
 dvm/dt = if state>=2:+3.462 else: if state==1:-(vm+51.75)+1/C*(Isp - (wad+b))+g_Exc-g_Inh else:1/C * ( -gL * (vm - EL) + gL * DeltaT * exp((vm - VT) / DeltaT) - wad + z ) + g_Exc -g_Inh: init = -70.6
@@ -504,4 +528,4 @@ if __name__ == "__main__":
     else:
         print("""No IMAGES.mat found, please download the file from:
         https://www.rctn.org/bruno/sparsenet/IMAGES.mat
-        and put in the code directory""")
+        and put in the *input* directory""")
